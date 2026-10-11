@@ -1,34 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Billu - Mobile & Tablet Billing Suite
 
-## Getting Started
+**Billu** is a touch-first, mobile and tablet billing application built with **Next.js**, **Capacitor**, and **Neon Serverless PostgreSQL**.
 
-First, run the development server:
+Designed specifically for smartphones and tablets (touch-first UI, bottom navigation bar, safe-area insets, digital signature pad, tablet dual-pane live preview).
 
+---
+
+## 🚀 Key Features
+
+1. **Touch-First Mobile & Tablet UI**:
+   - Single-column phone view with bottom navigation bar and floating action button.
+   - Dual-pane tablet split view (live synchronized bill on the right, editor on the left).
+   - In-app Phone/Tablet toggle for quick testing on desktop browsers.
+   - Haptic touch feedback using `@capacitor/haptics`.
+
+2. **Complete Professional Invoicing**:
+   - **Seller Profile**: Company name, logo, address, GSTIN, PAN, and phone/email.
+   - **Buyer / Client Info**: Quick client selector + in-place client addition with phone and GSTIN.
+   - **Item Catalog**: Products and services with HSN/SAC codes, customizable units (`pcs`, `service`, `hrs`, `kg`, `box`), and GST tax rates (0%, 5%, 12%, 18%, 28%).
+   - **Calculations**: Auto subtotal, item & overall discount (% or flat), GST split (Intra-state CGST + SGST vs Inter-state IGST), and round-off adjustment.
+   - **Amount in Words**: Indian numbering system (Lakhs, Crores).
+   - **Bank & UPI Payment**: Bank details and dynamic UPI QR code generator for instant mobile scan-to-pay.
+   - **Digital Signature**: Touch screen finger/stylus canvas drawing or saved image stamp upload.
+   - **PDF Generation & Native Share**: 1-tap client-side PDF export (`jspdf` + `html2canvas`) and WhatsApp / OS Share sheet integration (`@capacitor/share`).
+
+3. **Neon Serverless PostgreSQL + Drizzle ORM**:
+   - Resilient offline-first storage with instant local caching and automatic Neon DB cloud sync.
+   - Auto-creates database tables and schema migrations on first connection.
+   - Built-in in-app Neon DB connection status test modal.
+
+---
+
+## 🛠️ Getting Started
+
+### 1. Install Dependencies & Run Locally
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Open [http://localhost:3000](http://localhost:3000) on your mobile browser or device simulator.
+
+### 2. Connect Your Neon Database (Optional)
+Copy `.env.example` to `.env.local` and add your Neon connection string:
+```bash
+cp .env.example .env.local
+```
+Add your URL:
+```env
+DATABASE_URL="postgres://user:password@ep-your-branch-id.region.aws.neon.tech/neondb?sslmode=require"
+```
+Once added, restart `npm run dev` and tap the **Neon DB** indicator pill in the app header to sync tables!
+
+### 3. Build for iOS & Android via Capacitor
+To build a native mobile app:
+```bash
+# Build static web bundle
+npm run build
+
+# Add iOS or Android platform
+npx cap add ios
+npx cap add android
+
+# Sync web assets to native project
+npx cap sync
+
+# Open in Xcode or Android Studio
+npx cap open ios
+npx cap open android
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📁 Project Structure
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/page.tsx` - Main mobile application controller with tab state
+- `src/app/globals.css` - Custom mobile & tablet Vanilla CSS design system
+- `src/components/SignaturePad.tsx` - Touch screen canvas signature pad & image uploader
+- `src/components/InvoiceTemplate.tsx` - Tax invoice template with GST & UPI QR code
+- `src/components/CreateBillScreen.tsx` - Interactive bill creation wizard & tablet dual-pane
+- `src/components/DashboardScreen.tsx` - Metrics, recent bills & quick actions
+- `src/components/InvoicesScreen.tsx` - Searchable invoice list with filter chips
+- `src/components/ProductsScreen.tsx` - Product & service catalog management
+- `src/components/ClientsScreen.tsx` - Client directory with WhatsApp chat link
+- `src/components/SettingsScreen.tsx` - Business profile, bank details & default signature
+- `src/components/InvoiceDetailModal.tsx` - PDF export, WhatsApp & native share
+- `src/components/NeonConfigModal.tsx` - Neon DB connection status and schema sync
+- `src/lib/db/` - Neon PostgreSQL schema & Drizzle ORM client
+- `src/lib/storage.ts` - Offline-first storage layer with demo data seed
+- `src/lib/utils.ts` - Indian currency formatter, number-to-words, and haptics
