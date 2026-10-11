@@ -26,17 +26,22 @@ export function InvoiceDetailModal({
   if (!invoice) return null;
 
   const handleDownloadPdf = async () => {
-    triggerHaptic('medium');
     setDownloading(true);
     try {
       const invoiceElement = document.getElementById('modal-invoice-render');
-      if (!invoiceElement) return;
+      if (!invoiceElement) {
+        alert('Invoice render element not found');
+        return;
+      }
 
+      // Render invoice to high-resolution canvas with desktop window simulation
       const canvas = await html2canvas(invoiceElement, {
         scale: 2,
         useCORS: true,
+        allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff',
+        windowWidth: 1200,
       });
 
       const pdf = new jsPDF({
@@ -46,17 +51,22 @@ export function InvoiceDetailModal({
         compress: true,
       });
 
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      if (imgHeight <= pageHeight) {
-        // Fits entirely on a single A4 page
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      // Fit cleanly onto a single A4 page if within threshold
+      if (imgHeight <= pageHeight * 1.15) {
+        const scale = Math.min(1, pageHeight / imgHeight);
+        const renderWidth = imgWidth * scale;
+        const renderHeight = imgHeight * scale;
+        const xOffset = (pageWidth - renderWidth) / 2;
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', xOffset, 0, renderWidth, renderHeight, undefined, 'FAST');
       } else {
-        // Multi-page invoice: Slice canvas into precise A4 page chunks
-        // Compute pixel height corresponding to one A4 page
+        // Multi-page slicing for longer invoices
         const pageCanvasHeight = Math.floor(canvas.width * (pageHeight / imgWidth));
         const totalPages = Math.ceil(canvas.height / pageCanvasHeight);
 
@@ -64,8 +74,8 @@ export function InvoiceDetailModal({
           const sourceY = page * pageCanvasHeight;
           const currentSliceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
 
-          // Skip tiny trailing margins (< 25px) to prevent blank pages
-          if (currentSliceHeight < 25 && page > 0) continue;
+          // Skip tiny trailing margins (< 20px) to prevent blank pages
+          if (currentSliceHeight < 20 && page > 0) continue;
 
           const sliceCanvas = document.createElement('canvas');
           sliceCanvas.width = canvas.width;
@@ -82,7 +92,7 @@ export function InvoiceDetailModal({
             );
           }
 
-          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.85);
+          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
           const sliceMmHeight = (currentSliceHeight * imgWidth) / canvas.width;
 
           if (page > 0) {
@@ -92,18 +102,67 @@ export function InvoiceDetailModal({
         }
       }
 
-      pdf.save(`${invoice.invoiceNumber}.pdf`);
-      triggerHaptic('success');
-    } catch (e) {
+      const cleanInvNum = (invoice.invoiceNumber || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const fileName = `Invoice_${cleanInvNum}.pdf`;
+
+      // Check if running inside Capacitor Android / iOS Native App
+      const { Capacitor } = await import('@capacitor/core');
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Filesystem, Directory } = await import('@capacitor/filesystem');
+          const { Share } = await import('@capacitor/share');
+
+          // Extract base64 without prefix
+          const dataUri = pdf.output('datauristring');
+          const base64Data = dataUri.split(',')[1];
+
+          // 1. Write file to device Cache
+          const savedFile = await Filesystem.writeFile({
+            path: fileName,
+            data: base64Data,
+            directory: Directory.Cache,
+          });
+
+          // 2. Open Native Share sheet (provides Save to Drive/Files, Open with PDF Viewer, WhatsApp, etc.)
+          await Share.share({
+            title: fileName,
+            url: savedFile.uri,
+            dialogTitle: 'Save or Open Invoice PDF',
+          });
+        } catch (nativeErr) {
+          console.error('Native PDF save error', nativeErr);
+          alert('PDF generated. Opening print dialog fallback.');
+          window.print();
+        }
+      } else {
+        // Desktop / Mobile Web Browser
+        try {
+          pdf.save(fileName);
+        } catch {
+          const blob = pdf.output('blob');
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          link.target = '_blank';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+          }, 2000);
+        }
+      }
+    } catch (e: any) {
       console.error('PDF generation error', e);
-      window.print();
+      alert('Could not generate PDF: ' + (e?.message || 'Please try again.'));
     } finally {
       setDownloading(false);
     }
   };
 
   const handleShare = async () => {
-    triggerHaptic('light');
     const shareText = `*Tax Invoice from ${settings.name}*\n` +
       `Bill #: ${invoice.invoiceNumber}\n` +
       `Client: ${invoice.client?.name}\n` +
@@ -112,7 +171,32 @@ export function InvoiceDetailModal({
       (settings.upiId ? `Pay via UPI: ${settings.upiId}\n` : '');
 
     try {
+      const { Capacitor } = await import('@capacitor/core');
       const { Share } = await import('@capacitor/share');
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Filesystem, Directory } = await import('@capacitor/filesystem');
+          const cleanInvNum = (invoice.invoiceNumber || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const fileName = `Invoice_${cleanInvNum}.pdf`;
+          const uriResult = await Filesystem.getUri({
+            path: fileName,
+            directory: Directory.Cache,
+          });
+          if (uriResult?.uri) {
+            await Share.share({
+              title: `Invoice ${invoice.invoiceNumber}`,
+              text: shareText,
+              url: uriResult.uri,
+              dialogTitle: 'Share Invoice with Client',
+            });
+            return;
+          }
+        } catch {
+          // Fall through to text share if PDF file was not previously generated
+        }
+      }
+
       await Share.share({
         title: `Invoice ${invoice.invoiceNumber}`,
         text: shareText,
@@ -141,7 +225,6 @@ export function InvoiceDetailModal({
   };
 
   const handleWhatsApp = () => {
-    triggerHaptic('light');
     const waPhone = invoice.client?.phone?.replace(/[^0-9]/g, '') || '';
     const shareText = `Hello ${invoice.client?.name},\nHere is your invoice *#${invoice.invoiceNumber}* for *${formatCurrency(invoice.grandTotal)}* from *${settings.name}*.\nThank you!`;
     const waUrl = waPhone
@@ -154,7 +237,7 @@ export function InvoiceDetailModal({
     <div className="modal-overlay" onClick={onClose} style={{ alignItems: 'flex-start', paddingTop: '20px' }}>
       <div
         className="modal-content"
-        style={{ maxWidth: '780px', width: '100%', maxHeight: '95vh' }}
+        style={{ maxWidth: '800px', width: '100%', maxHeight: '95vh' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Action Bar */}
@@ -181,7 +264,7 @@ export function InvoiceDetailModal({
             style={{ fontSize: '0.75rem', padding: '6px' }}
           >
             {downloading ? <Loader2 size={13} className="spin" /> : <Download size={13} />}
-            <span>PDF</span>
+            <span>{downloading ? 'PDF...' : 'PDF'}</span>
           </button>
 
           <button
@@ -208,7 +291,6 @@ export function InvoiceDetailModal({
             type="button"
             className="btn btn-sm btn-secondary"
             onClick={() => {
-              triggerHaptic('light');
               onToggleStatus(invoice);
             }}
             style={{ fontSize: '0.75rem', padding: '6px' }}
@@ -218,8 +300,11 @@ export function InvoiceDetailModal({
           </button>
         </div>
 
-        {/* Invoice View Area */}
-        <div style={{ overflowX: 'auto', background: '#334155', padding: '12px', borderRadius: '12px' }}>
+        {/* Invoice View Area with Smooth Touch Scroll */}
+        <div className="invoice-preview-container">
+          <div className="invoice-preview-scroll-hint">
+            <span>↔ Scroll horizontally to view full invoice</span>
+          </div>
           <InvoiceTemplate id="modal-invoice-render" invoice={invoice} settings={settings} />
         </div>
 

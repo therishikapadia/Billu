@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Billu</string>
+    <string name="title_activity_main">Billu</string>
+    <string name="package_name">com.billu.billing</string>
+    <string name="custom_url_scheme">com.billu.billing</string>
+</resources>

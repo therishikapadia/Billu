@@ -5,6 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Billu',
   webDir: 'out',
   server: {
+    // Point this to your deployed Vercel domain:
+    url: 'https://billu-lyart.vercel.app/',
+    cleartext: false,
     androidScheme: 'https'
   },
   plugins: {

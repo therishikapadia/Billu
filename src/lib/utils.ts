@@ -114,30 +114,10 @@ export function numberToIndianWords(num: number): string {
 }
 
 /**
- * Trigger native haptic feedback on mobile if Capacitor is available
+ * Native haptic feedback (disabled per user request)
  */
-export async function triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') {
-  try {
-    const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
-    if (type === 'light') {
-      await Haptics.impact({ style: ImpactStyle.Light });
-    } else if (type === 'medium') {
-      await Haptics.impact({ style: ImpactStyle.Medium });
-    } else if (type === 'heavy') {
-      await Haptics.impact({ style: ImpactStyle.Heavy });
-    } else if (type === 'success') {
-      await Haptics.notification({ type: NotificationType.Success });
-    } else if (type === 'warning') {
-      await Haptics.notification({ type: NotificationType.Warning });
-    } else if (type === 'error') {
-      await Haptics.notification({ type: NotificationType.Error });
-    }
-  } catch {
-    // Haptics not available in pure desktop browser, fall back to navigator.vibrate if available
-    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(type === 'heavy' ? 40 : 15);
-    }
-  }
+export async function triggerHaptic(_type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') {
+  // Vibration on click disabled
 }
 
 /**

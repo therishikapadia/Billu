@@ -32,6 +32,7 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
               <img
                 src={settings.logoUrl}
                 alt={settings.name}
+                crossOrigin="anonymous"
                 style={{ height: '52px', objectFit: 'contain', borderRadius: '4px' }}
               />
             )}
@@ -136,26 +137,26 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
         <tbody>
           {invoice.items.map((item, idx) => (
             <tr key={item.id || idx}>
-              <td style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{idx + 1}</td>
-              <td>
+              <td style={{ color: '#94a3b8', fontSize: '0.75rem', width: '30px' }}>{idx + 1}</td>
+              <td style={{ wordBreak: 'break-word' }}>
                 <div style={{ fontWeight: 600, color: '#0f172a' }}>{item.name}</div>
                 {item.description && (
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{item.description}</div>
                 )}
               </td>
-              <td style={{ textAlign: 'center', fontSize: '0.72rem', color: '#64748b' }}>
+              <td style={{ textAlign: 'center', fontSize: '0.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>
                 {item.hsn || '-'}
               </td>
-              <td style={{ textAlign: 'center', fontWeight: 600 }}>
+              <td style={{ textAlign: 'center', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 {item.quantity} <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{item.unit}</span>
               </td>
-              <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+              <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
                 {formatCurrency(item.price)}
               </td>
-              <td style={{ textAlign: 'center', fontSize: '0.75rem', color: '#475569' }}>
+              <td style={{ textAlign: 'center', fontSize: '0.75rem', color: '#475569', whiteSpace: 'nowrap' }}>
                 {item.taxRate}%
               </td>
-              <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+              <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
                 {formatCurrency(item.amount)}
               </td>
             </tr>
@@ -166,12 +167,12 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
       {/* 4. Financial Calculation Summary */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
         {/* Left column: Amount in words & Bank info */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: '12px' }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
               Amount In Words:
             </span>
-            <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a', fontStyle: 'italic', marginTop: '2px' }}>
+            <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a', fontStyle: 'italic', marginTop: '2px', wordBreak: 'break-word' }}>
               {numberToIndianWords(invoice.grandTotal)}
             </p>
           </div>
@@ -188,11 +189,12 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
               alignItems: 'center'
             }}>
               {qrCodeUrl && (
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', flexShrink: 0 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrCodeUrl}
                     alt="Scan & Pay"
+                    crossOrigin="anonymous"
                     style={{ width: '70px', height: '70px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                   />
                   <span style={{ display: 'block', fontSize: '0.6rem', color: '#64748b', fontWeight: 700, marginTop: '2px' }}>
@@ -288,6 +290,7 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
             <img
               src={invoice.signatureData}
               alt="Authorized Signature"
+              crossOrigin="anonymous"
               style={{ maxHeight: '60px', maxWidth: '140px', objectFit: 'contain', marginBottom: '4px' }}
             />
           ) : settings.signatureUrl ? (
@@ -295,6 +298,7 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
             <img
               src={settings.signatureUrl}
               alt="Authorized Signature"
+              crossOrigin="anonymous"
               style={{ maxHeight: '60px', maxWidth: '140px', objectFit: 'contain', marginBottom: '4px' }}
             />
           ) : (
