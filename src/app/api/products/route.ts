@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { getAuthUser } from '@/lib/auth';
 
 function getDbClient() {
   const dbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
@@ -7,15 +8,25 @@ function getDbClient() {
   return neon(dbUrl);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+  }
+
   const sql = getDbClient();
   if (!sql) return NextResponse.json({ message: 'Neon DB not configured', useLocal: true });
 
   try {
-    const rows = await sql`SELECT * FROM products ORDER BY created_at DESC`;
+    const rows = await sql`
+      SELECT * FROM products 
+      WHERE user_id = ${authUser.id} 
+      ORDER BY created_at DESC
+    `;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const formatted = rows.map((p: any) => ({
       id: p.id,
+      userId: p.user_id,
       name: p.name,
       description: p.description || '',
       hsn: p.hsn || '',
@@ -29,7 +40,7 @@ export async function GET() {
       { success: true, data: formatted },
       {
         headers: {
-          'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
         },
       }
     );
@@ -40,6 +51,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+  }
+
   const sql = getDbClient();
   if (!sql) return NextResponse.json({ message: 'Neon DB not configured', useLocal: true });
 
@@ -47,12 +63,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { id, name, description, hsn, price, unit, taxRate, stock } = body;
 
+    if (!id || !name) {
+      return NextResponse.json({ error: 'Product name and ID are required' }, { status: 400 });
+    }
+
+    const safePrice = Math.max(0, Number(price) || 0);
+    const safeTax = Math.max(0, Number(taxRate) || 0);
+
     const result = await sql`
       INSERT INTO products (
-        id, name, description, hsn, price, unit, tax_rate, stock
+        id, user_id, name, description, hsn, price, unit, tax_rate, stock
       ) VALUES (
-        ${id}, ${name}, ${description || null}, ${hsn || null},
-        ${price}, ${unit || 'pcs'}, ${taxRate || 18}, ${stock || null}
+        ${id}, ${authUser.id}, ${name.trim()}, ${description || null}, ${hsn || null},
+        ${safePrice}, ${unit || 'pcs'}, ${safeTax}, ${stock !== undefined && stock !== null ? Number(stock) : null}
       )
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -62,8 +85,13 @@ export async function POST(request: Request) {
         unit = EXCLUDED.unit,
         tax_rate = EXCLUDED.tax_rate,
         stock = EXCLUDED.stock
+      WHERE products.user_id = ${authUser.id}
       RETURNING *
     `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: 'Product not found or access denied.' }, { status: 403 });
+    }
 
     return NextResponse.json({ success: true, data: result[0] });
   } catch (error: unknown) {
@@ -73,6 +101,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+  }
+
   const sql = getDbClient();
   if (!sql) return NextResponse.json({ message: 'Neon DB not configured', useLocal: true });
 
@@ -81,7 +114,16 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
-    await sql`DELETE FROM products WHERE id = ${id}`;
+    const result = await sql`
+      DELETE FROM products 
+      WHERE id = ${id} AND user_id = ${authUser.id}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: 'Product not found or access denied.' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);

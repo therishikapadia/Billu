@@ -1,17 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CompanySettings } from '@/lib/types';
+import { CompanySettings, User } from '@/lib/types';
 import { triggerHaptic } from '@/lib/utils';
-import { Building2, CreditCard, FileCheck, Save, Image, Check } from 'lucide-react';
+import { Building2, CreditCard, FileCheck, Save, Image, Check, LogOut, ShieldCheck } from 'lucide-react';
 import { SignaturePad } from './SignaturePad';
 
 interface SettingsScreenProps {
   settings: CompanySettings;
   onSaveSettings: (settings: CompanySettings) => void;
+  currentUser?: User | null;
+  onLogout?: () => void;
 }
 
-export function SettingsScreen({ settings, onSaveSettings }: SettingsScreenProps) {
+export function SettingsScreen({ settings, onSaveSettings, currentUser, onLogout }: SettingsScreenProps) {
   const [form, setForm] = useState<CompanySettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'company' | 'bank' | 'signature' | 'terms'>('company');
@@ -43,10 +45,85 @@ export function SettingsScreen({ settings, onSaveSettings }: SettingsScreenProps
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div>
-        <h2 className="title-md">Company Settings</h2>
-        <p className="text-muted text-xs">Configure your business details on bills</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 className="title-md">Company Settings</h2>
+          <p className="text-muted text-xs">Configure your business details on bills</p>
+        </div>
+        {onLogout && (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={() => {
+              triggerHaptic('warning');
+              onLogout();
+            }}
+            style={{ fontSize: '0.75rem', gap: '4px', borderColor: '#fca5a5', color: '#dc2626' }}
+            title="Sign out of current account"
+          >
+            <LogOut size={13} /> Sign Out
+          </button>
+        )}
       </div>
+
+      {/* Account Info Pill */}
+      {currentUser && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: '10px',
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--primary-light)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+              }}
+            >
+              {currentUser.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                {currentUser.name}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {currentUser.email}
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.7rem',
+              color: '#16a34a',
+              backgroundColor: '#f0fdf4',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              fontWeight: 600,
+            }}
+          >
+            <ShieldCheck size={13} />
+            <span>Multi-Tenant</span>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>

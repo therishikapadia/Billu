@@ -767,6 +767,38 @@ body {
   animation: spin 1s linear infinite;
 }
 
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.03) translateY(-3px);
+  }
+}
+
+.billu-logo-pulse {
+  animation: logoPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes splashShimmer {
+  0% {
+    left: -45%;
+    width: 30%;
+  }
+  50% {
+    left: 30%;
+    width: 55%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
+}
+
+.splash-progress-bar {
+  animation: splashShimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 /* Print CSS */
 @media print {
   body {

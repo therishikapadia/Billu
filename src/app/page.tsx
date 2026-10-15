@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { CompanySettings, Client, Product, Invoice } from '@/lib/types';
-import { storage, DEFAULT_SETTINGS, DEFAULT_CLIENTS, DEFAULT_PRODUCTS, DEFAULT_INVOICES } from '@/lib/storage';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { CompanySettings, Client, Product, Invoice, User } from '@/lib/types';
+import { storage, DEFAULT_SETTINGS } from '@/lib/storage';
 import { MobileHeader } from '@/components/MobileHeader';
 import { BottomNav, NavTab } from '@/components/BottomNav';
 import { DashboardScreen } from '@/components/DashboardScreen';
@@ -12,80 +12,192 @@ import { ProductsScreen } from '@/components/ProductsScreen';
 import { ClientsScreen } from '@/components/ClientsScreen';
 import { SettingsScreen } from '@/components/SettingsScreen';
 import { InvoiceDetailModal } from '@/components/InvoiceDetailModal';
+import { AuthScreen } from '@/components/AuthScreen';
+import { SplashScreen } from '@/components/SplashScreen';
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [showSplash, setShowSplash] = useState<boolean>(true);
+
+  const currentUserRef = useRef<User | null>(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!isAuthChecking) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+      }, 650);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthChecking]);
+
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [isNeonConnected, setIsNeonConnected] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  // Core Data - initialized to static constants to prevent SSR hydration mismatch
+  // Core Data - scoped to logged in user
   const [settings, setSettings] = useState<CompanySettings>(DEFAULT_SETTINGS);
-  const [clients, setClients] = useState<Client[]>(DEFAULT_CLIENTS);
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
-  const [invoices, setInvoices] = useState<Invoice[]>(DEFAULT_INVOICES);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
-  // Remote Sync Function with TTL Caching (limits unnecessary Neon DB queries)
-  const syncWithRemote = useCallback(async (force = false) => {
-    // If not forced and data was synced recently (< 15 mins), skip remote query
-    if (!force && !storage.shouldSync(15)) {
-      return;
-    }
-
-    setIsSyncing(true);
+  const handleLogout = useCallback(async () => {
     try {
-      const res = await fetch('/api/db-status');
-      const data = await res.json();
-      if (data.connected) {
-        setIsNeonConnected(true);
-        try {
-          const [sRes, cRes, pRes, iRes] = await Promise.all([
-            fetch('/api/settings').then(r => r.json()),
-            fetch('/api/clients').then(r => r.json()),
-            fetch('/api/products').then(r => r.json()),
-            fetch('/api/invoices').then(r => r.json()),
-          ]);
-
-          if (sRes.data) {
-            setSettings((prev) => ({ ...prev, ...sRes.data }));
-            storage.saveSettings({ ...storage.getSettings(), ...sRes.data });
-          }
-          if (cRes.data && cRes.data.length > 0) {
-            setClients(cRes.data);
-            storage.saveClients(cRes.data);
-          }
-          if (pRes.data && pRes.data.length > 0) {
-            setProducts(pRes.data);
-            storage.saveProducts(pRes.data);
-          }
-          if (iRes.data && iRes.data.length > 0) {
-            setInvoices(iRes.data);
-            storage.saveInvoices(iRes.data);
-          }
-          storage.setLastSync();
-        } catch (syncErr) {
-          console.warn('Neon remote sync fallback to local', syncErr);
-        }
-      } else {
-        setIsNeonConnected(false);
-      }
-    } catch {
-      setIsNeonConnected(false);
-    } finally {
-      setIsSyncing(false);
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: storage.getAuthHeaders(),
+      });
+    } catch (e) {
+      console.warn('Logout endpoint call failed', e);
     }
+    storage.clearAuth();
+    setCurrentUser(null);
+    setSettings(DEFAULT_SETTINGS);
+    setClients([]);
+    setProducts([]);
+    setInvoices([]);
+    setActiveTab('dashboard');
   }, []);
 
-  // Client-side mount: Load persisted local storage immediately (0ms, zero network)
+  // Remote Sync Function with TTL Caching (limits unnecessary Neon DB queries)
+  const syncWithRemote = useCallback(
+    async (force = false, userToSync?: User | null) => {
+      const activeUser = userToSync || currentUserRef.current;
+      if (!activeUser) return;
+
+      // If not forced and data was synced recently (< 15 mins), skip remote query
+      if (!force && !storage.shouldSync(15)) {
+        return;
+      }
+
+      setIsSyncing(true);
+      try {
+        const authHeaders = storage.getAuthHeaders();
+        const res = await fetch('/api/db-status');
+        const data = await res.json();
+
+        if (data.connected) {
+          setIsNeonConnected(true);
+          try {
+            const [sRes, cRes, pRes, iRes] = await Promise.all([
+              fetch('/api/settings', { headers: authHeaders }).then((r) => r.json()),
+              fetch('/api/clients', { headers: authHeaders }).then((r) => r.json()),
+              fetch('/api/products', { headers: authHeaders }).then((r) => r.json()),
+              fetch('/api/invoices', { headers: authHeaders }).then((r) => r.json()),
+            ]);
+
+            // If session expired
+            if (sRes.status === 401 || cRes.status === 401) {
+              handleLogout();
+              return;
+            }
+
+            if (sRes.data) {
+              setSettings((prev) => ({ ...prev, ...sRes.data }));
+              storage.saveSettings({ ...storage.getSettings(activeUser), ...sRes.data });
+            }
+            if (cRes.data) {
+              setClients(cRes.data);
+              storage.saveClients(cRes.data);
+            }
+            if (pRes.data) {
+              setProducts(pRes.data);
+              storage.saveProducts(pRes.data);
+            }
+            if (iRes.data) {
+              setInvoices(iRes.data);
+              storage.saveInvoices(iRes.data);
+            }
+            storage.setLastSync();
+          } catch (syncErr) {
+            console.warn('Neon remote sync fallback to local', syncErr);
+          }
+        } else {
+          setIsNeonConnected(false);
+        }
+      } catch {
+        setIsNeonConnected(false);
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [handleLogout]
+  );
+
+  // Check auth session on startup
   useEffect(() => {
-    setSettings(storage.getSettings());
+    let isMounted = true;
+    async function initAuth() {
+      try {
+        const storedUser = storage.getStoredUser();
+        const headers = storage.getAuthHeaders();
+
+        if (storedUser && isMounted) {
+          storage.setUserId(storedUser.id);
+          setCurrentUser(storedUser);
+          setSettings(storage.getSettings(storedUser));
+          setClients(storage.getClients());
+          setProducts(storage.getProducts());
+          setInvoices(storage.getInvoices());
+        }
+
+        // Verify with backend
+        const res = await fetch('/api/auth/me', { headers });
+        if (res.ok) {
+          const authData = await res.json();
+          if (authData.authenticated && authData.user && isMounted) {
+            storage.setUserId(authData.user.id);
+            setCurrentUser(authData.user);
+            setSettings(storage.getSettings(authData.user));
+            setClients(storage.getClients());
+            setProducts(storage.getProducts());
+            setInvoices(storage.getInvoices());
+            syncWithRemote(false, authData.user);
+          } else if (isMounted) {
+            storage.clearAuth();
+            setCurrentUser(null);
+          }
+        } else if (isMounted) {
+          storage.clearAuth();
+          setCurrentUser(null);
+        }
+      } catch {
+        // If offline, trust local auth token if present
+        const storedUser = storage.getStoredUser();
+        if (storedUser && isMounted) {
+          storage.setUserId(storedUser.id);
+          setCurrentUser(storedUser);
+        }
+      } finally {
+        if (isMounted) {
+          setIsAuthChecking(false);
+        }
+      }
+    }
+
+    initAuth();
+    return () => {
+      isMounted = false;
+    };
+  }, [syncWithRemote]);
+
+  const handleAuthSuccess = (user: User, token: string) => {
+    storage.setStoredAuth(user, token);
+    storage.setUserId(user.id);
+    setCurrentUser(user);
+    setSettings(storage.getSettings(user));
     setClients(storage.getClients());
     setProducts(storage.getProducts());
     setInvoices(storage.getInvoices());
-
-    // Only query DB if cache TTL expired or on first launch
-    syncWithRemote(false);
-  }, [syncWithRemote]);
+    setActiveTab('dashboard');
+    setTimeout(() => {
+      syncWithRemote(true, user);
+    }, 200);
+  };
 
   // --- SETTINGS HANDLERS ---
   const handleSaveSettings = async (newSettings: CompanySettings) => {
@@ -96,7 +208,7 @@ export default function Home() {
       try {
         await fetch('/api/settings', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify(newSettings),
         });
       } catch (e) {
@@ -114,7 +226,7 @@ export default function Home() {
       try {
         await fetch('/api/clients', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify(newClient),
         });
       } catch (e) {
@@ -132,7 +244,7 @@ export default function Home() {
       try {
         await fetch('/api/clients', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify(client),
         });
       } catch (e) {
@@ -147,7 +259,10 @@ export default function Home() {
 
     if (isNeonConnected) {
       try {
-        await fetch(`/api/clients?id=${id}`, { method: 'DELETE' });
+        await fetch(`/api/clients?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
       } catch (e) {
         console.error('Failed to delete client from Neon DB', e);
       }
@@ -163,7 +278,7 @@ export default function Home() {
       try {
         await fetch('/api/products', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify(newProduct),
         });
       } catch (e) {
@@ -180,7 +295,7 @@ export default function Home() {
       try {
         await fetch('/api/products', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify(product),
         });
       } catch (e) {
@@ -195,7 +310,10 @@ export default function Home() {
 
     if (isNeonConnected) {
       try {
-        await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+        await fetch(`/api/products?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
       } catch (e) {
         console.error('Failed to delete product from Neon DB', e);
       }
@@ -211,7 +329,7 @@ export default function Home() {
       try {
         await fetch('/api/invoices', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify({
             ...newInvoice,
             clientData: newInvoice.client,
@@ -222,7 +340,6 @@ export default function Home() {
       }
     }
 
-    // Open detail modal for the created invoice
     setSelectedInvoice(newInvoice);
     setActiveTab('invoices');
   };
@@ -244,7 +361,7 @@ export default function Home() {
       try {
         await fetch('/api/invoices', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: storage.getAuthHeaders(),
           body: JSON.stringify({
             ...updated,
             clientData: updated.client,
@@ -262,7 +379,10 @@ export default function Home() {
 
     if (isNeonConnected) {
       try {
-        await fetch(`/api/invoices?id=${id}`, { method: 'DELETE' });
+        await fetch(`/api/invoices?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
       } catch (e) {
         console.error('Failed to delete invoice from Neon DB', e);
       }
@@ -289,6 +409,16 @@ export default function Home() {
     }
   };
 
+  // Opening Splash Screen while initializing workspace
+  if (showSplash) {
+    return <SplashScreen />;
+  }
+
+  // Not logged in -> Show Auth Screen
+  if (!currentUser) {
+    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
+
   return (
     <div className="device-viewport">
       {/* Mobile/Tablet Sticky App Header */}
@@ -300,6 +430,8 @@ export default function Home() {
         isSettingsActive={activeTab === 'settings'}
         isSyncing={isSyncing}
         onSync={() => syncWithRemote(true)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Screen Content */}
@@ -358,6 +490,8 @@ export default function Home() {
           <SettingsScreen
             settings={settings}
             onSaveSettings={handleSaveSettings}
+            currentUser={currentUser}
+            onLogout={handleLogout}
           />
         )}
       </main>

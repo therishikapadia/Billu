@@ -1,31 +1,34 @@
-import { CompanySettings, Client, Product, Invoice } from './types';
+import { CompanySettings, Client, Product, Invoice, User } from './types';
 
-const SETTINGS_KEY = 'billu_settings';
-const CLIENTS_KEY = 'billu_clients';
-const PRODUCTS_KEY = 'billu_products';
-const INVOICES_KEY = 'billu_invoices';
-const LAST_SYNC_KEY = 'billu_last_sync_timestamp';
+const BASE_SETTINGS_KEY = 'billu_settings';
+const BASE_CLIENTS_KEY = 'billu_clients';
+const BASE_PRODUCTS_KEY = 'billu_products';
+const BASE_INVOICES_KEY = 'billu_invoices';
+const BASE_LAST_SYNC_KEY = 'billu_last_sync_timestamp';
+
+const AUTH_USER_KEY = 'billu_auth_user';
+const AUTH_TOKEN_KEY = 'billu_auth_token';
 
 export const DEFAULT_SETTINGS: CompanySettings = {
   id: 'default',
-  name: 'Acme Solutions Pvt Ltd',
-  tagline: 'Leading Business Technology & Services',
-  email: 'contact@acmesolutions.in',
-  phone: '+91 98765 43210',
-  address: 'Suite 402, Pinnacle Business Park, Andheri East',
-  city: 'Mumbai',
-  state: 'Maharashtra',
-  pincode: '400069',
-  gstin: '27AABCU9603R1ZM',
-  pan: 'AABCU9603R',
-  bankName: 'HDFC Bank Ltd',
-  accountNumber: '50200012345678',
-  ifsc: 'HDFC0000123',
-  upiId: 'acmesolutions@hdfcbank',
+  name: 'My Business',
+  tagline: 'Smart Invoicing & Billing',
+  email: '',
+  phone: '',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  gstin: '',
+  pan: '',
+  bankName: '',
+  accountNumber: '',
+  ifsc: '',
+  upiId: '',
   logoUrl: '',
   signatureUrl: '',
   terms: '1. Payment due within 15 days of invoice date.\n2. Interest @ 18% p.a. will be charged on overdue payments.\n3. Goods once sold will not be taken back.',
-  notes: 'Thank you for your business! Please scan the QR code or transfer to the bank account above.',
+  notes: 'Thank you for your business!',
   currency: 'INR',
   currencySymbol: '₹',
   taxType: 'GST',
@@ -57,18 +60,6 @@ export const DEFAULT_CLIENTS: Client[] = [
     gstin: '27AAACT5678K1ZQ',
     createdAt: new Date().toISOString(),
   },
-  {
-    id: 'client-3',
-    name: 'Bangalore Web Labs',
-    phone: '+91 99887 66554',
-    email: 'billing@weblabs.io',
-    billingAddress: '42, 100 Feet Rd, Indiranagar',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560038',
-    gstin: '29AABCB8899M1ZU',
-    createdAt: new Date().toISOString(),
-  }
 ];
 
 export const DEFAULT_PRODUCTS: Product[] = [
@@ -105,17 +96,6 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 25,
     createdAt: new Date().toISOString(),
   },
-  {
-    id: 'prod-4',
-    name: 'Thermal Receipt Rolls (Box of 50)',
-    description: '3-inch high-density thermal paper rolls for POS printers',
-    hsn: '481190',
-    price: 1200,
-    unit: 'box',
-    taxRate: 12,
-    stock: 100,
-    createdAt: new Date().toISOString(),
-  }
 ];
 
 export const DEFAULT_INVOICES: Invoice[] = [
@@ -141,52 +121,130 @@ export const DEFAULT_INVOICES: Invoice[] = [
         amount: 35000,
         taxAmount: 6300,
       },
-      {
-        id: 'item-2',
-        productId: 'prod-3',
-        name: 'Hardware POS Barcode Scanner Pro',
-        description: 'Wireless Bluetooth scanner',
-        hsn: '847190',
-        quantity: 2,
-        unit: 'pcs',
-        price: 4500,
-        discountPercent: 5,
-        taxRate: 18,
-        amount: 8550,
-        taxAmount: 1539,
-      }
     ],
-    subtotal: 43550,
+    subtotal: 35000,
     discountType: 'flat',
     discountValue: 0,
     discountAmount: 0,
     taxType: 'GST_INTRA_STATE',
-    taxAmount: 7839,
-    cgstAmount: 3919.5,
-    sgstAmount: 3919.5,
+    taxAmount: 6300,
+    cgstAmount: 3150,
+    sgstAmount: 3150,
     igstAmount: 0,
-    roundOff: 0.10,
-    grandTotal: 51389,
-    notes: 'Thank you for your partnership!',
+    roundOff: 0,
+    grandTotal: 41300,
+    notes: 'Thank you for your business!',
     terms: 'Payment due within 15 days.',
     status: 'paid',
     paymentReceivedDate: '2026-10-03',
     paymentMode: 'UPI',
     createdAt: '2026-10-01T10:00:00Z',
-  }
+  },
 ];
 
 class StorageService {
+  private currentUserId: string | null = null;
+
   private isBrowser(): boolean {
     return typeof window !== 'undefined';
   }
 
-  // --- SETTINGS ---
-  getSettings(): CompanySettings {
+  // --- USER CONTEXT & MULTI-TENANCY ISOLATION ---
+  setUserId(userId: string | null): void {
+    this.currentUserId = userId;
+  }
+
+  getUserId(): string | null {
+    return this.currentUserId;
+  }
+
+  private getKey(base: string): string {
+    return this.currentUserId ? `${base}_${this.currentUserId}` : base;
+  }
+
+  // --- AUTHENTICATION STORAGE (For Capacitor & Client Resilience) ---
+  getStoredToken(): string | null {
+    if (!this.isBrowser()) return null;
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  }
+
+  getStoredUser(): User | null {
+    if (!this.isBrowser()) return null;
+    try {
+      const data = localStorage.getItem(AUTH_USER_KEY);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setStoredAuth(user: User, token: string): void {
+    if (!this.isBrowser()) return;
+    try {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      this.setUserId(user.id);
+    } catch (e) {
+      console.error('Failed to store auth state', e);
+    }
+  }
+
+  clearAuth(): void {
+    if (!this.isBrowser()) return;
+    try {
+      localStorage.removeItem(AUTH_USER_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      this.currentUserId = null;
+    } catch (e) {
+      console.error('Failed to clear auth state', e);
+    }
+  }
+
+  // Helper to attach authorization header on API calls
+  getAuthHeaders(): Record<string, string> {
+    const token = this.getStoredToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
+  // --- SETTINGS (Scoped to active User) ---
+  getSettings(fallbackUser?: User | null): CompanySettings {
     if (!this.isBrowser()) return DEFAULT_SETTINGS;
     try {
-      const data = localStorage.getItem(SETTINGS_KEY);
-      return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
+      const key = this.getKey(BASE_SETTINGS_KEY);
+      const data = localStorage.getItem(key);
+      if (data) {
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+      }
+      // If personalized for new user
+      if (fallbackUser) {
+        return {
+          ...DEFAULT_SETTINGS,
+          id: fallbackUser.id,
+          userId: fallbackUser.id,
+          name: fallbackUser.companyName || `${fallbackUser.name}'s Business`,
+          email: fallbackUser.email,
+          phone: '',
+          address: '',
+          city: '',
+          state: '',
+          pincode: '',
+          gstin: '',
+          pan: '',
+          bankName: '',
+          accountNumber: '',
+          ifsc: '',
+          upiId: '',
+          logoUrl: '',
+          signatureUrl: '',
+        };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -195,30 +253,32 @@ class StorageService {
   saveSettings(settings: CompanySettings): void {
     if (!this.isBrowser()) return;
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      const key = this.getKey(BASE_SETTINGS_KEY);
+      localStorage.setItem(key, JSON.stringify(settings));
     } catch (e) {
       console.error('Failed to save settings to localStorage', e);
     }
   }
 
-  // --- CLIENTS ---
+  // --- CLIENTS (Scoped to active User) ---
   getClients(): Client[] {
     if (!this.isBrowser()) return DEFAULT_CLIENTS;
     try {
-      const data = localStorage.getItem(CLIENTS_KEY);
+      const key = this.getKey(BASE_CLIENTS_KEY);
+      const data = localStorage.getItem(key);
       if (!data) {
-        this.saveClients(DEFAULT_CLIENTS);
-        return DEFAULT_CLIENTS;
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return DEFAULT_CLIENTS;
+      return [];
     }
   }
 
   saveClients(clients: Client[]): void {
     if (!this.isBrowser()) return;
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
+    const key = this.getKey(BASE_CLIENTS_KEY);
+    localStorage.setItem(key, JSON.stringify(clients));
   }
 
   addClient(client: Omit<Client, 'id' | 'createdAt'>): Client {
@@ -226,6 +286,7 @@ class StorageService {
     const newClient: Client = {
       ...client,
       id: `client-${Date.now()}`,
+      userId: this.currentUserId || undefined,
       createdAt: new Date().toISOString(),
     };
     clients.unshift(newClient);
@@ -234,33 +295,34 @@ class StorageService {
   }
 
   updateClient(client: Client): void {
-    const clients = this.getClients().map(c => (c.id === client.id ? client : c));
+    const clients = this.getClients().map((c) => (c.id === client.id ? client : c));
     this.saveClients(clients);
   }
 
   deleteClient(id: string): void {
-    const clients = this.getClients().filter(c => c.id !== id);
+    const clients = this.getClients().filter((c) => c.id !== id);
     this.saveClients(clients);
   }
 
-  // --- PRODUCTS ---
+  // --- PRODUCTS (Scoped to active User) ---
   getProducts(): Product[] {
     if (!this.isBrowser()) return DEFAULT_PRODUCTS;
     try {
-      const data = localStorage.getItem(PRODUCTS_KEY);
+      const key = this.getKey(BASE_PRODUCTS_KEY);
+      const data = localStorage.getItem(key);
       if (!data) {
-        this.saveProducts(DEFAULT_PRODUCTS);
-        return DEFAULT_PRODUCTS;
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return DEFAULT_PRODUCTS;
+      return [];
     }
   }
 
   saveProducts(products: Product[]): void {
     if (!this.isBrowser()) return;
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+    const key = this.getKey(BASE_PRODUCTS_KEY);
+    localStorage.setItem(key, JSON.stringify(products));
   }
 
   addProduct(product: Omit<Product, 'id' | 'createdAt'>): Product {
@@ -268,6 +330,7 @@ class StorageService {
     const newProduct: Product = {
       ...product,
       id: `prod-${Date.now()}`,
+      userId: this.currentUserId || undefined,
       createdAt: new Date().toISOString(),
     };
     products.unshift(newProduct);
@@ -276,37 +339,38 @@ class StorageService {
   }
 
   updateProduct(product: Product): void {
-    const products = this.getProducts().map(p => (p.id === product.id ? product : p));
+    const products = this.getProducts().map((p) => (p.id === product.id ? product : p));
     this.saveProducts(products);
   }
 
   deleteProduct(id: string): void {
-    const products = this.getProducts().filter(p => p.id !== id);
+    const products = this.getProducts().filter((p) => p.id !== id);
     this.saveProducts(products);
   }
 
-  // --- INVOICES ---
+  // --- INVOICES (Scoped to active User) ---
   getInvoices(): Invoice[] {
     if (!this.isBrowser()) return DEFAULT_INVOICES;
     try {
-      const data = localStorage.getItem(INVOICES_KEY);
+      const key = this.getKey(BASE_INVOICES_KEY);
+      const data = localStorage.getItem(key);
       if (!data) {
-        this.saveInvoices(DEFAULT_INVOICES);
-        return DEFAULT_INVOICES;
+        return [];
       }
       return JSON.parse(data);
     } catch {
-      return DEFAULT_INVOICES;
+      return [];
     }
   }
 
   saveInvoices(invoices: Invoice[]): void {
     if (!this.isBrowser()) return;
-    localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
+    const key = this.getKey(BASE_INVOICES_KEY);
+    localStorage.setItem(key, JSON.stringify(invoices));
   }
 
   getInvoiceById(id: string): Invoice | undefined {
-    return this.getInvoices().find(inv => inv.id === id);
+    return this.getInvoices().find((inv) => inv.id === id);
   }
 
   addInvoice(invoice: Omit<Invoice, 'id' | 'createdAt'>): Invoice {
@@ -314,6 +378,7 @@ class StorageService {
     const newInvoice: Invoice = {
       ...invoice,
       id: `inv-${Date.now()}`,
+      userId: this.currentUserId || undefined,
       createdAt: new Date().toISOString(),
     };
     invoices.unshift(newInvoice);
@@ -322,12 +387,12 @@ class StorageService {
   }
 
   updateInvoice(invoice: Invoice): void {
-    const invoices = this.getInvoices().map(inv => (inv.id === invoice.id ? invoice : inv));
+    const invoices = this.getInvoices().map((inv) => (inv.id === invoice.id ? invoice : inv));
     this.saveInvoices(invoices);
   }
 
   deleteInvoice(id: string): void {
-    const invoices = this.getInvoices().filter(inv => inv.id !== id);
+    const invoices = this.getInvoices().filter((inv) => inv.id !== id);
     this.saveInvoices(invoices);
   }
 
@@ -338,11 +403,12 @@ class StorageService {
     return `INV-${year}-${count.toString().padStart(4, '0')}`;
   }
 
-  // --- SYNC CACHING & TTL (Limit Neon DB calls) ---
+  // --- SYNC CACHING & TTL (Per-User Caching) ---
   getLastSync(): number {
     if (!this.isBrowser()) return 0;
     try {
-      const val = localStorage.getItem(LAST_SYNC_KEY);
+      const key = this.getKey(BASE_LAST_SYNC_KEY);
+      const val = localStorage.getItem(key);
       return val ? parseInt(val, 10) : 0;
     } catch {
       return 0;
@@ -352,7 +418,8 @@ class StorageService {
   setLastSync(timestamp: number = Date.now()): void {
     if (!this.isBrowser()) return;
     try {
-      localStorage.setItem(LAST_SYNC_KEY, timestamp.toString());
+      const key = this.getKey(BASE_LAST_SYNC_KEY);
+      localStorage.setItem(key, timestamp.toString());
     } catch (e) {
       console.error('Failed to update sync timestamp', e);
     }

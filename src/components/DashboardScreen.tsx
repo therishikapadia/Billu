@@ -3,7 +3,7 @@
 import React from 'react';
 import { Invoice, CompanySettings } from '@/lib/types';
 import { formatCurrency, formatDate, triggerHaptic } from '@/lib/utils';
-import { Plus, ArrowUpRight, Clock, CheckCircle2, FileText, ChevronRight, Share2 } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, FileText, ChevronRight, Share2, Building2, ArrowRight } from 'lucide-react';
 import { NavTab } from './BottomNav';
 
 interface DashboardScreenProps {
@@ -21,6 +21,12 @@ export function DashboardScreen({
   onSelectInvoice,
   onShareInvoice,
 }: DashboardScreenProps) {
+  // Check if user has filled in basic details
+  const hasAddress = Boolean(settings.address && settings.address.trim().length > 0);
+  const hasGstin = Boolean(settings.gstin && settings.gstin.trim().length > 0);
+  const hasPhone = Boolean(settings.phone && settings.phone.trim().length > 0);
+  const isProfileIncomplete = !hasAddress || !hasGstin || !hasPhone;
+
   // Financial summaries
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
   const paidInvoices = invoices.filter(inv => inv.status === 'paid');
@@ -33,6 +39,145 @@ export function DashboardScreen({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {/* New User: Complete Basic Details Notice */}
+      {isProfileIncomplete && (
+        <div
+          className="card"
+          style={{
+            background: 'linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)',
+            border: '1.5px solid #bfdbfe',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
+              }}
+            >
+              <Building2 size={20} />
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#1e3a8a', margin: 0 }}>
+                  Please Fill Basic Business Details
+                </h3>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    backgroundColor: '#dbeafe',
+                    color: '#1e40af',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                  }}
+                >
+                  Setup Required
+                </span>
+              </div>
+
+              <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: '4px', lineHeight: 1.45 }}>
+                Your business details (such as address, GST number, and contact info) appear on all your printed bills and PDFs. Complete them now to start issuing professional invoices:
+              </p>
+
+              {/* Missing Details Checklist */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                {!hasAddress && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#9a3412',
+                      backgroundColor: '#ffedd5',
+                      border: '1px solid #fed7aa',
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>⚠️</span> Address & City
+                  </span>
+                )}
+                {!hasGstin && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#9a3412',
+                      backgroundColor: '#ffedd5',
+                      border: '1px solid #fed7aa',
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>⚠️</span> GSTIN Number
+                  </span>
+                )}
+                {!hasPhone && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: '#9a3412',
+                      backgroundColor: '#ffedd5',
+                      border: '1px solid #fed7aa',
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>⚠️</span> Contact Phone
+                  </span>
+                )}
+              </div>
+
+              <div style={{ marginTop: '14px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    onNavigate('settings');
+                  }}
+                >
+                  <span>Fill Basic Details Now</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Card */}
       <div className="card" style={{ position: 'relative', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

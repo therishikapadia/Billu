@@ -95,3 +95,21 @@ Based on commercial invoicing best practices (GST/VAT compliant, professional gr
    - Step 5: Save, generate PDF, and share directly via WhatsApp / Native Share
 5. **Invoice Management**: Filter by status (Paid / Unpaid), search, download PDF, mark payment received.
 6. **Company Settings**: Configure company name, address, tax number, logo, default terms, bank details & UPI ID.
+
+---
+
+## 4. Security & Multi-Tenant Architecture
+
+### A. Authentication & Session Management
+- **Password Hashing**: Secure `bcryptjs` with 10 salt rounds.
+- **Stateless JWT Tokens**: Signed via `jose` with HS256, 7-day expiration.
+- **Hybrid Session Delivery**:
+  - **Web**: HTTP-only, SameSite=Lax, Secure cookie (`billu_auth_token`).
+  - **Mobile (Capacitor)**: `Authorization: Bearer <token>` header support with fallback.
+- **Brute-Force Protection**: Sliding-window in-memory rate limiting on `/api/auth/login` and `/api/auth/signup`.
+
+### B. Multi-Tenant Data Isolation
+- **Database Level**: All tables (`products`, `clients`, `invoices`, `company_settings`) enforce `user_id` foreign keys and indexed constraints.
+- **IDOR Prevention**: All queries (`SELECT`, `UPDATE`, `DELETE`) strictly require `WHERE user_id = $userId`. Users cannot view, modify, or delete another user's records even if object IDs are enumerated.
+- **Sequential Invoice Isolation**: Composite unique constraint `UNIQUE (user_id, invoice_number)` allows each user their own sequence (`INV-2026-0001`, etc.) without collision.
+- **Client-side Local Cache Isolation**: Browser storage keys are isolated per user (`billu_{userId}_products`, etc.). Logging out clears memory and active session state.

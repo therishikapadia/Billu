@@ -1,5 +1,22 @@
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  companyName?: string;
+  createdAt?: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  user?: User;
+  token?: string;
+  message?: string;
+  error?: string;
+}
+
 export interface CompanySettings {
   id: string;
+  userId?: string;
   name: string;
   tagline: string;
   email: string;
@@ -26,6 +43,7 @@ export interface CompanySettings {
 
 export interface Client {
   id: string;
+  userId?: string;
   name: string;
   phone: string;
   email?: string;
@@ -42,6 +60,7 @@ export interface Client {
 
 export interface Product {
   id: string;
+  userId?: string;
   name: string;
   description?: string;
   hsn?: string;
@@ -69,6 +88,7 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: string;
+  userId?: string;
   invoiceNumber: string;
   date: string;
   dueDate: string;

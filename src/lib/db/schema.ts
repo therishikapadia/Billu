@@ -1,7 +1,18 @@
-import { pgTable, text, serial, numeric, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, numeric, timestamp, jsonb } from 'drizzle-orm/pg-core';
+
+export const usersTable = pgTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  name: text('name').notNull(),
+  companyName: text('company_name'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
 
 export const companySettingsTable = pgTable('company_settings', {
   id: text('id').primaryKey(),
+  userId: text('user_id').unique(),
   name: text('name').notNull(),
   tagline: text('tagline').default(''),
   email: text('email').default(''),
@@ -28,6 +39,7 @@ export const companySettingsTable = pgTable('company_settings', {
 
 export const clientsTable = pgTable('clients', {
   id: text('id').primaryKey(),
+  userId: text('user_id'),
   name: text('name').notNull(),
   phone: text('phone').notNull(),
   email: text('email'),
@@ -44,6 +56,7 @@ export const clientsTable = pgTable('clients', {
 
 export const productsTable = pgTable('products', {
   id: text('id').primaryKey(),
+  userId: text('user_id'),
   name: text('name').notNull(),
   description: text('description'),
   hsn: text('hsn'),
@@ -56,7 +69,8 @@ export const productsTable = pgTable('products', {
 
 export const invoicesTable = pgTable('invoices', {
   id: text('id').primaryKey(),
-  invoiceNumber: text('invoice_number').notNull().unique(),
+  userId: text('user_id'),
+  invoiceNumber: text('invoice_number').notNull(),
   date: text('date').notNull(),
   dueDate: text('due_date').notNull(),
   clientId: text('client_id').notNull(),

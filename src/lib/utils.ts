@@ -9,7 +9,7 @@ export function formatCurrency(amount: number, symbol: string = '₹'): string {
   const absAmount = Math.abs(amount);
   
   const parts = absAmount.toFixed(2).split('.');
-  let integerPart = parts[0];
+  const integerPart = parts[0];
   const decimalPart = parts[1];
 
   // Indian Numbering grouping (last 3 digits, then groups of 2)

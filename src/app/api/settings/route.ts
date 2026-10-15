@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { getAuthUser } from '@/lib/auth';
 
 function getDbClient() {
   const dbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
@@ -7,18 +8,24 @@ function getDbClient() {
   return neon(dbUrl);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+  }
+
   const sql = getDbClient();
   if (!sql) return NextResponse.json({ message: 'Neon DB not configured', useLocal: true });
 
   try {
-    const rows = await sql`SELECT * FROM company_settings WHERE id = 'default' LIMIT 1`;
+    const rows = await sql`SELECT * FROM company_settings WHERE user_id = ${authUser.id} LIMIT 1`;
     const r = rows[0];
     if (!r) {
       return NextResponse.json({ success: true, data: null });
     }
     const formatted = {
       id: r.id,
+      userId: r.user_id,
       name: r.name,
       tagline: r.tagline || '',
       email: r.email || '',
@@ -46,7 +53,7 @@ export async function GET() {
       { success: true, data: formatted },
       {
         headers: {
-          'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
         },
       }
     );
@@ -57,6 +64,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authUser = await getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+  }
+
   const sql = getDbClient();
   if (!sql) return NextResponse.json({ message: 'Neon DB not configured', useLocal: true });
 
@@ -70,17 +82,17 @@ export async function POST(request: Request) {
 
     const result = await sql`
       INSERT INTO company_settings (
-        id, name, tagline, email, phone, address, city, state, pincode,
+        id, user_id, name, tagline, email, phone, address, city, state, pincode,
         gstin, pan, bank_name, account_number, ifsc, upi_id,
         logo_url, signature_url, terms, notes, currency, currency_symbol, tax_type, updated_at
       ) VALUES (
-        'default', ${name}, ${tagline || ''}, ${email || ''}, ${phone || ''}, ${address || ''},
+        ${authUser.id}, ${authUser.id}, ${name}, ${tagline || ''}, ${email || ''}, ${phone || ''}, ${address || ''},
         ${city || ''}, ${state || ''}, ${pincode || ''}, ${gstin || ''}, ${pan || ''},
         ${bankName || ''}, ${accountNumber || ''}, ${ifsc || ''}, ${upiId || ''},
         ${logoUrl || null}, ${signatureUrl || null}, ${terms || ''}, ${notes || ''},
         ${currency || 'INR'}, ${currencySymbol || '₹'}, ${taxType || 'GST'}, NOW()
       )
-      ON CONFLICT (id) DO UPDATE SET
+      ON CONFLICT (user_id) DO UPDATE SET
         name = EXCLUDED.name,
         tagline = EXCLUDED.tagline,
         email = EXCLUDED.email,

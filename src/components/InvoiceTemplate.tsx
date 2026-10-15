@@ -77,21 +77,6 @@ export function InvoiceTemplate({ invoice, settings, id = 'invoice-print-area' }
           <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
             <strong>Due Date:</strong> {formatDate(invoice.dueDate)}
           </p>
-          <div style={{ marginTop: '6px' }}>
-            <span style={{
-              display: 'inline-block',
-              padding: '2px 8px',
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              borderRadius: '999px',
-              textTransform: 'uppercase',
-              backgroundColor: invoice.status === 'paid' ? '#dcfce7' : invoice.status === 'draft' ? '#f1f5f9' : '#fef3c7',
-              color: invoice.status === 'paid' ? '#166534' : invoice.status === 'draft' ? '#475569' : '#92400e',
-              border: `1px solid ${invoice.status === 'paid' ? '#86efac' : invoice.status === 'draft' ? '#cbd5e1' : '#fde68a'}`
-            }}>
-              {invoice.status}
-            </span>
-          </div>
         </div>
       </div>
 

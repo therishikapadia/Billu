@@ -19,7 +19,7 @@ export function NeonConfigModal({ isOpen, onClose, onStatusChange }: NeonConfigM
     time?: string;
   } | null>(null);
 
-  const checkConnection = async () => {
+  const checkConnection = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/db-status');
@@ -41,13 +41,20 @@ export function NeonConfigModal({ isOpen, onClose, onStatusChange }: NeonConfigM
     } finally {
       setLoading(false);
     }
-  };
+  }, [onStatusChange]);
 
   useEffect(() => {
+    let active = true;
     if (isOpen) {
-      checkConnection();
+      const timer = setTimeout(() => {
+        if (active) checkConnection();
+      }, 0);
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
     }
-  }, [isOpen]);
+  }, [isOpen, checkConnection]);
 
   if (!isOpen) return null;
 

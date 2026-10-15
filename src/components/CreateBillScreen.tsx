@@ -27,11 +27,8 @@ export function CreateBillScreen({
 }: CreateBillScreenProps) {
   // 1. Basic Info
   const [invoiceNumber, setInvoiceNumber] = useState(nextInvoiceNumber);
-  const todayStr = new Date().toISOString().split('T')[0];
-  const dueStr = new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
-
-  const [date, setDate] = useState(todayStr);
-  const [dueDate, setDueDate] = useState(dueStr);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0]);
 
   // 2. Client Selection
   const [selectedClientId, setSelectedClientId] = useState<string>(clients[0]?.id || '');
@@ -42,7 +39,7 @@ export function CreateBillScreen({
   const [newClientGstin, setNewClientGstin] = useState('');
 
   // 3. Line Items
-  const [items, setItems] = useState<InvoiceItem[]>([
+  const [items, setItems] = useState<InvoiceItem[]>(() => [
     {
       id: `item-${Date.now()}`,
       productId: products[0]?.id,

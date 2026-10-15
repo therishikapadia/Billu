@@ -154,9 +154,10 @@ export function InvoiceDetailModal({
           }, 2000);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('PDF generation error', e);
-      alert('Could not generate PDF: ' + (e?.message || 'Please try again.'));
+      const msg = e instanceof Error ? e.message : 'Please try again.';
+      alert('Could not generate PDF: ' + msg);
     } finally {
       setDownloading(false);
     }

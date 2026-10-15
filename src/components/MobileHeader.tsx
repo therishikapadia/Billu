@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Settings, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Settings, ArrowLeft, RefreshCw, LogOut } from 'lucide-react';
 import { triggerHaptic } from '@/lib/utils';
+import { User } from '@/lib/types';
+import { BilluLogo } from './BilluLogo';
 
 interface MobileHeaderProps {
   title?: string;
@@ -12,6 +14,8 @@ interface MobileHeaderProps {
   isSettingsActive?: boolean;
   isSyncing?: boolean;
   onSync?: () => void;
+  currentUser?: User | null;
+  onLogout?: () => void;
 }
 
 export function MobileHeader({
@@ -22,6 +26,8 @@ export function MobileHeader({
   isSettingsActive,
   isSyncing = false,
   onSync,
+  currentUser,
+  onLogout,
 }: MobileHeaderProps) {
   return (
     <header className="app-header">
@@ -40,15 +46,15 @@ export function MobileHeader({
             <ArrowLeft size={19} />
           </button>
         ) : (
-          <div className="brand-icon">
-            <span style={{ fontWeight: 800, fontSize: '1.15rem', fontFamily: 'var(--font-mono)' }}>B</span>
+          <div title={currentUser ? `Logged in as ${currentUser.name}` : 'Billu'} style={{ display: 'flex', alignItems: 'center' }}>
+            <BilluLogo size={36} />
           </div>
         )}
 
         <div>
           <h1 className="brand-title">{title || 'Billu'}</h1>
           <p className="brand-subtitle">
-            Smart Invoicing Suite
+            {currentUser?.companyName || currentUser?.name || 'Smart Invoicing Suite'}
           </p>
         </div>
       </div>
@@ -93,6 +99,27 @@ export function MobileHeader({
         >
           <Settings size={18} />
         </button>
+
+        {/* Logout button */}
+        {currentUser && onLogout && (
+          <button
+            type="button"
+            className="icon-button"
+            style={{
+              color: 'var(--text-muted)',
+              borderColor: 'var(--border-subtle)',
+              backgroundColor: '#ffffff',
+            }}
+            onClick={() => {
+              triggerHaptic('warning');
+              onLogout();
+            }}
+            title="Sign Out"
+            aria-label="Sign Out"
+          >
+            <LogOut size={17} />
+          </button>
+        )}
       </div>
     </header>
   );
