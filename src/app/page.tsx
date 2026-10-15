@@ -1,13 +1,32 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { CompanySettings, Client, Product, Invoice, User } from '@/lib/types';
+import {
+  CompanySettings,
+  Client,
+  Product,
+  Invoice,
+  User,
+  Supplier,
+  Purchase,
+  Expense,
+  Receipt,
+  Payment,
+} from '@/lib/types';
 import { storage, DEFAULT_SETTINGS } from '@/lib/storage';
+import { accountingStorage } from '@/lib/accounting-storage';
 import { MobileHeader } from '@/components/MobileHeader';
 import { BottomNav, NavTab } from '@/components/BottomNav';
 import { DashboardScreen } from '@/components/DashboardScreen';
 import { InvoicesScreen } from '@/components/InvoicesScreen';
 import { CreateBillScreen } from '@/components/CreateBillScreen';
+import { PurchasesScreen } from '@/components/PurchasesScreen';
+import { CreatePurchaseScreen } from '@/components/CreatePurchaseScreen';
+import { ExpensesScreen } from '@/components/ExpensesScreen';
+import { ReceiptsPaymentsScreen } from '@/components/ReceiptsPaymentsScreen';
+import { ReportsScreen } from '@/components/ReportsScreen';
+import { MoreMenuScreen } from '@/components/MoreMenuScreen';
+import { SuppliersScreen } from '@/components/SuppliersScreen';
 import { ProductsScreen } from '@/components/ProductsScreen';
 import { ClientsScreen } from '@/components/ClientsScreen';
 import { SettingsScreen } from '@/components/SettingsScreen';
@@ -45,6 +64,13 @@ export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
 
+  // Accounting Module Data
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+
   const handleLogout = useCallback(async () => {
     try {
       await fetch('/api/auth/logout', {
@@ -55,21 +81,26 @@ export default function Home() {
       console.warn('Logout endpoint call failed', e);
     }
     storage.clearAuth();
+    accountingStorage.setUserId(null);
     setCurrentUser(null);
     setSettings(DEFAULT_SETTINGS);
     setClients([]);
     setProducts([]);
     setInvoices([]);
+    setSuppliers([]);
+    setPurchases([]);
+    setExpenses([]);
+    setReceipts([]);
+    setPayments([]);
     setActiveTab('dashboard');
   }, []);
 
-  // Remote Sync Function with TTL Caching (limits unnecessary Neon DB queries)
+  // Remote Sync Function with TTL Caching
   const syncWithRemote = useCallback(
     async (force = false, userToSync?: User | null) => {
       const activeUser = userToSync || currentUserRef.current;
       if (!activeUser) return;
 
-      // If not forced and data was synced recently (< 15 mins), skip remote query
       if (!force && !storage.shouldSync(15)) {
         return;
       }
@@ -83,11 +114,19 @@ export default function Home() {
         if (data.connected) {
           setIsNeonConnected(true);
           try {
-            const [sRes, cRes, pRes, iRes] = await Promise.all([
-              fetch('/api/settings', { headers: authHeaders }).then((r) => r.json()),
-              fetch('/api/clients', { headers: authHeaders }).then((r) => r.json()),
-              fetch('/api/products', { headers: authHeaders }).then((r) => r.json()),
-              fetch('/api/invoices', { headers: authHeaders }).then((r) => r.json()),
+            // Trigger DB migration check in background
+            fetch('/api/migrate', { method: 'POST', headers: authHeaders }).catch(() => {});
+
+            const [sRes, cRes, pRes, iRes, supRes, purRes, expRes, recRes, payRes] = await Promise.all([
+              fetch('/api/settings', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/clients', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/products', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/invoices', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/suppliers', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/purchases', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/expenses', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/receipts', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
+              fetch('/api/payments', { headers: authHeaders }).then((r) => r.json()).catch(() => ({})),
             ]);
 
             // If session expired
@@ -112,6 +151,26 @@ export default function Home() {
               setInvoices(iRes.data);
               storage.saveInvoices(iRes.data);
             }
+            if (supRes.data) {
+              setSuppliers(supRes.data);
+              accountingStorage.saveSuppliers(supRes.data);
+            }
+            if (purRes.data) {
+              setPurchases(purRes.data);
+              accountingStorage.savePurchases(purRes.data);
+            }
+            if (expRes.data) {
+              setExpenses(expRes.data);
+              accountingStorage.saveExpenses(expRes.data);
+            }
+            if (recRes.data) {
+              setReceipts(recRes.data);
+              accountingStorage.saveReceipts(recRes.data);
+            }
+            if (payRes.data) {
+              setPayments(payRes.data);
+              accountingStorage.savePayments(payRes.data);
+            }
             storage.setLastSync();
           } catch (syncErr) {
             console.warn('Neon remote sync fallback to local', syncErr);
@@ -128,6 +187,22 @@ export default function Home() {
     [handleLogout]
   );
 
+  // Load user data into state
+  const loadUserData = (user: User) => {
+    storage.setUserId(user.id);
+    accountingStorage.setUserId(user.id);
+    setCurrentUser(user);
+    setSettings(storage.getSettings(user));
+    setClients(storage.getClients());
+    setProducts(storage.getProducts());
+    setInvoices(storage.getInvoices());
+    setSuppliers(accountingStorage.getSuppliers());
+    setPurchases(accountingStorage.getPurchases());
+    setExpenses(accountingStorage.getExpenses());
+    setReceipts(accountingStorage.getReceipts());
+    setPayments(accountingStorage.getPayments());
+  };
+
   // Check auth session on startup
   useEffect(() => {
     let isMounted = true;
@@ -137,12 +212,7 @@ export default function Home() {
         const headers = storage.getAuthHeaders();
 
         if (storedUser && isMounted) {
-          storage.setUserId(storedUser.id);
-          setCurrentUser(storedUser);
-          setSettings(storage.getSettings(storedUser));
-          setClients(storage.getClients());
-          setProducts(storage.getProducts());
-          setInvoices(storage.getInvoices());
+          loadUserData(storedUser);
         }
 
         // Verify with backend
@@ -150,12 +220,7 @@ export default function Home() {
         if (res.ok) {
           const authData = await res.json();
           if (authData.authenticated && authData.user && isMounted) {
-            storage.setUserId(authData.user.id);
-            setCurrentUser(authData.user);
-            setSettings(storage.getSettings(authData.user));
-            setClients(storage.getClients());
-            setProducts(storage.getProducts());
-            setInvoices(storage.getInvoices());
+            loadUserData(authData.user);
             syncWithRemote(false, authData.user);
           } else if (isMounted) {
             storage.clearAuth();
@@ -166,11 +231,9 @@ export default function Home() {
           setCurrentUser(null);
         }
       } catch {
-        // If offline, trust local auth token if present
         const storedUser = storage.getStoredUser();
         if (storedUser && isMounted) {
-          storage.setUserId(storedUser.id);
-          setCurrentUser(storedUser);
+          loadUserData(storedUser);
         }
       } finally {
         if (isMounted) {
@@ -187,12 +250,7 @@ export default function Home() {
 
   const handleAuthSuccess = (user: User, token: string) => {
     storage.setStoredAuth(user, token);
-    storage.setUserId(user.id);
-    setCurrentUser(user);
-    setSettings(storage.getSettings(user));
-    setClients(storage.getClients());
-    setProducts(storage.getProducts());
-    setInvoices(storage.getInvoices());
+    loadUserData(user);
     setActiveTab('dashboard');
     setTimeout(() => {
       syncWithRemote(true, user);
@@ -269,6 +327,58 @@ export default function Home() {
     }
   };
 
+  // --- SUPPLIER HANDLERS ---
+  const handleAddSupplier = async (supplierData: Omit<Supplier, 'id' | 'createdAt'>): Promise<Supplier> => {
+    const newSupplier = accountingStorage.addSupplier(supplierData);
+    setSuppliers(accountingStorage.getSuppliers());
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(newSupplier),
+        });
+      } catch (e) {
+        console.error('Failed to sync supplier to Neon DB', e);
+      }
+    }
+    return newSupplier;
+  };
+
+  const handleUpdateSupplier = async (supplier: Supplier) => {
+    accountingStorage.updateSupplier(supplier);
+    setSuppliers(accountingStorage.getSuppliers());
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(supplier),
+        });
+      } catch (e) {
+        console.error('Failed to sync supplier update to Neon DB', e);
+      }
+    }
+  };
+
+  const handleDeleteSupplier = async (id: string) => {
+    accountingStorage.deleteSupplier(id);
+    setSuppliers(accountingStorage.getSuppliers());
+
+    if (isNeonConnected) {
+      try {
+        await fetch(`/api/suppliers?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to delete supplier from Neon DB', e);
+      }
+    }
+  };
+
   // --- PRODUCT HANDLERS ---
   const handleAddProduct = async (productData: Omit<Product, 'id' | 'createdAt'>) => {
     const newProduct = storage.addProduct(productData);
@@ -324,6 +434,20 @@ export default function Home() {
   const handleSaveInvoice = async (invoiceData: Omit<Invoice, 'id' | 'createdAt'>) => {
     const newInvoice = storage.addInvoice(invoiceData);
     setInvoices(storage.getInvoices());
+
+    // Automatically decrement product stock for items sold
+    if (Array.isArray(newInvoice.items)) {
+      newInvoice.items.forEach((item) => {
+        if (item.productId) {
+          const currentProd = storage.getProducts().find((p) => p.id === item.productId);
+          if (currentProd && currentProd.stock !== undefined) {
+            const updatedProd = { ...currentProd, stock: Math.max(0, currentProd.stock - (item.quantity || 1)) };
+            storage.updateProduct(updatedProd);
+          }
+        }
+      });
+      setProducts(storage.getProducts());
+    }
 
     if (isNeonConnected) {
       try {
@@ -389,19 +513,243 @@ export default function Home() {
     }
   };
 
+  // --- PURCHASE HANDLERS ---
+  const handleSavePurchase = async (purchaseData: Omit<Purchase, 'id' | 'createdAt'>) => {
+    const newPurchase = accountingStorage.addPurchase(purchaseData);
+    setPurchases(accountingStorage.getPurchases());
+
+    // Automatically increment product stock for items received
+    if (Array.isArray(newPurchase.items)) {
+      newPurchase.items.forEach((item) => {
+        if (item.productId) {
+          const currentProd = storage.getProducts().find((p) => p.id === item.productId);
+          if (currentProd) {
+            const updatedProd = {
+              ...currentProd,
+              stock: (currentProd.stock || 0) + (item.quantity || 1),
+              purchasePrice: item.price || currentProd.purchasePrice,
+            };
+            storage.updateProduct(updatedProd);
+          }
+        }
+      });
+      setProducts(storage.getProducts());
+    }
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/purchases', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(newPurchase),
+        });
+      } catch (e) {
+        console.error('Failed to sync purchase to Neon DB', e);
+      }
+    }
+
+    setActiveTab('purchases');
+  };
+
+  const handleTogglePurchaseStatus = async (purchase: Purchase) => {
+    const updatedStatus: Purchase['status'] = purchase.status === 'paid' ? 'pending' : 'paid';
+    const updated: Purchase = {
+      ...purchase,
+      status: updatedStatus,
+    };
+    accountingStorage.updatePurchase(updated);
+    setPurchases(accountingStorage.getPurchases());
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/purchases', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(updated),
+        });
+      } catch (e) {
+        console.error('Failed to sync purchase status to Neon DB', e);
+      }
+    }
+  };
+
+  const handleDeletePurchase = async (id: string) => {
+    accountingStorage.deletePurchase(id);
+    setPurchases(accountingStorage.getPurchases());
+
+    if (isNeonConnected) {
+      try {
+        await fetch(`/api/purchases?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to delete purchase from Neon DB', e);
+      }
+    }
+  };
+
+  // --- EXPENSE HANDLERS ---
+  const handleAddExpense = async (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
+    const newExpense = accountingStorage.addExpense(expenseData);
+    setExpenses(accountingStorage.getExpenses());
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/expenses', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(newExpense),
+        });
+      } catch (e) {
+        console.error('Failed to sync expense to Neon DB', e);
+      }
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    accountingStorage.deleteExpense(id);
+    setExpenses(accountingStorage.getExpenses());
+
+    if (isNeonConnected) {
+      try {
+        await fetch(`/api/expenses?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to delete expense from Neon DB', e);
+      }
+    }
+  };
+
+  // --- RECEIPTS & PAYMENTS HANDLERS ---
+  const handleAddReceipt = async (receiptData: Omit<Receipt, 'id' | 'createdAt'>) => {
+    const newReceipt = accountingStorage.addReceipt(receiptData);
+    setReceipts(accountingStorage.getReceipts());
+
+    // If linked to an invoice, update invoice status or amount paid
+    if (receiptData.referenceId) {
+      const inv = storage.getInvoices().find((i) => i.id === receiptData.referenceId);
+      if (inv) {
+        const newPaid = (inv.amountPaid || 0) + receiptData.amount;
+        const isFullyPaid = newPaid >= inv.grandTotal;
+        const updatedInvoice: Invoice = {
+          ...inv,
+          amountPaid: newPaid,
+          status: isFullyPaid ? 'paid' : inv.status,
+          paymentReceivedDate: isFullyPaid ? receiptData.date : inv.paymentReceivedDate,
+        };
+        storage.updateInvoice(updatedInvoice);
+        setInvoices(storage.getInvoices());
+      }
+    }
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/receipts', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(newReceipt),
+        });
+      } catch (e) {
+        console.error('Failed to sync receipt to Neon DB', e);
+      }
+    }
+  };
+
+  const handleDeleteReceipt = async (id: string) => {
+    accountingStorage.deleteReceipt(id);
+    setReceipts(accountingStorage.getReceipts());
+
+    if (isNeonConnected) {
+      try {
+        await fetch(`/api/receipts?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to delete receipt from Neon DB', e);
+      }
+    }
+  };
+
+  const handleAddPayment = async (paymentData: Omit<Payment, 'id' | 'createdAt'>) => {
+    const newPayment = accountingStorage.addPayment(paymentData);
+    setPayments(accountingStorage.getPayments());
+
+    // If linked to a purchase, update purchase status or amount paid
+    if (paymentData.referenceId) {
+      const pur = accountingStorage.getPurchases().find((p) => p.id === paymentData.referenceId);
+      if (pur) {
+        const newPaid = (pur.amountPaid || 0) + paymentData.amount;
+        const isFullyPaid = newPaid >= pur.grandTotal;
+        const updatedPurchase: Purchase = {
+          ...pur,
+          amountPaid: newPaid,
+          status: isFullyPaid ? 'paid' : pur.status,
+        };
+        accountingStorage.updatePurchase(updatedPurchase);
+        setPurchases(accountingStorage.getPurchases());
+      }
+    }
+
+    if (isNeonConnected) {
+      try {
+        await fetch('/api/payments', {
+          method: 'POST',
+          headers: storage.getAuthHeaders(),
+          body: JSON.stringify(newPayment),
+        });
+      } catch (e) {
+        console.error('Failed to sync payment to Neon DB', e);
+      }
+    }
+  };
+
+  const handleDeletePayment = async (id: string) => {
+    accountingStorage.deletePayment(id);
+    setPayments(accountingStorage.getPayments());
+
+    if (isNeonConnected) {
+      try {
+        await fetch(`/api/payments?id=${id}`, {
+          method: 'DELETE',
+          headers: storage.getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to delete payment from Neon DB', e);
+      }
+    }
+  };
+
   // Screen title logic
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard':
         return 'Billu';
       case 'invoices':
-        return 'Invoices';
+        return 'Sales Invoices';
       case 'create':
         return 'New Bill';
+      case 'purchases':
+        return 'Purchases';
+      case 'create-purchase':
+        return 'New Purchase';
+      case 'expenses':
+        return 'Expenses';
+      case 'receipts-payments':
+        return 'Money In & Out';
       case 'products':
-        return 'Products';
+        return 'Products & Stock';
       case 'clients':
-        return 'Clients';
+        return 'Customers';
+      case 'suppliers':
+        return 'Suppliers';
+      case 'reports':
+        return 'Reports & P&L';
+      case 'more':
+        return 'All Modules';
       case 'settings':
         return 'Settings';
       default:
@@ -440,6 +788,8 @@ export default function Home() {
           <DashboardScreen
             invoices={invoices}
             settings={settings}
+            purchases={purchases}
+            expenses={expenses}
             onNavigate={setActiveTab}
             onSelectInvoice={setSelectedInvoice}
             onShareInvoice={setSelectedInvoice}
@@ -468,6 +818,50 @@ export default function Home() {
           />
         )}
 
+        {activeTab === 'purchases' && (
+          <PurchasesScreen
+            purchases={purchases}
+            onToggleStatus={handleTogglePurchaseStatus}
+            onDeletePurchase={handleDeletePurchase}
+            onCreateNew={() => setActiveTab('create-purchase')}
+          />
+        )}
+
+        {activeTab === 'create-purchase' && (
+          <CreatePurchaseScreen
+            suppliers={suppliers}
+            products={products}
+            settings={settings}
+            onSavePurchase={handleSavePurchase}
+            onQuickAddSupplier={handleAddSupplier}
+            nextPurchaseNumber={accountingStorage.getNextPurchaseNumber()}
+            onCancel={() => setActiveTab('purchases')}
+          />
+        )}
+
+        {activeTab === 'expenses' && (
+          <ExpensesScreen
+            expenses={expenses}
+            onAddExpense={handleAddExpense}
+            onDeleteExpense={handleDeleteExpense}
+          />
+        )}
+
+        {activeTab === 'receipts-payments' && (
+          <ReceiptsPaymentsScreen
+            receipts={receipts}
+            payments={payments}
+            clients={clients}
+            suppliers={suppliers}
+            invoices={invoices}
+            purchases={purchases}
+            onAddReceipt={handleAddReceipt}
+            onDeleteReceipt={handleDeleteReceipt}
+            onAddPayment={handleAddPayment}
+            onDeletePayment={handleDeletePayment}
+          />
+        )}
+
         {activeTab === 'products' && (
           <ProductsScreen
             products={products}
@@ -483,6 +877,38 @@ export default function Home() {
             onAddClient={handleAddClient}
             onUpdateClient={handleUpdateClient}
             onDeleteClient={handleDeleteClient}
+          />
+        )}
+
+        {activeTab === 'suppliers' && (
+          <SuppliersScreen
+            suppliers={suppliers}
+            onAddSupplier={handleAddSupplier}
+            onUpdateSupplier={handleUpdateSupplier}
+            onDeleteSupplier={handleDeleteSupplier}
+          />
+        )}
+
+        {activeTab === 'reports' && (
+          <ReportsScreen
+            invoices={invoices}
+            purchases={purchases}
+            expenses={expenses}
+            receipts={receipts}
+            payments={payments}
+            clients={clients}
+            suppliers={suppliers}
+          />
+        )}
+
+        {activeTab === 'more' && (
+          <MoreMenuScreen
+            onNavigate={setActiveTab}
+            productsCount={products.length}
+            clientsCount={clients.length}
+            suppliersCount={suppliers.length}
+            purchasesCount={purchases.length}
+            expensesCount={expenses.length}
           />
         )}
 

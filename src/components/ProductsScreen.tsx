@@ -27,9 +27,11 @@ export function ProductsScreen({
   const [description, setDescription] = useState('');
   const [hsn, setHsn] = useState('');
   const [price, setPrice] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
   const [unit, setUnit] = useState<Product['unit']>('pcs');
   const [taxRate, setTaxRate] = useState('18');
   const [stock, setStock] = useState('');
+  const [minStock, setMinStock] = useState('');
 
   const openAddModal = () => {
     setEditingProduct(null);
@@ -37,9 +39,11 @@ export function ProductsScreen({
     setDescription('');
     setHsn('');
     setPrice('');
+    setPurchasePrice('');
     setUnit('pcs');
     setTaxRate('18');
     setStock('');
+    setMinStock('');
     setModalOpen(true);
     triggerHaptic('light');
   };
@@ -50,9 +54,11 @@ export function ProductsScreen({
     setDescription(p.description || '');
     setHsn(p.hsn || '');
     setPrice(p.price.toString());
+    setPurchasePrice(p.purchasePrice !== undefined ? p.purchasePrice.toString() : '');
     setUnit(p.unit);
     setTaxRate(p.taxRate.toString());
-    setStock(p.stock ? p.stock.toString() : '');
+    setStock(p.stock !== undefined ? p.stock.toString() : '');
+    setMinStock(p.minStock !== undefined ? p.minStock.toString() : '');
     setModalOpen(true);
     triggerHaptic('light');
   };
@@ -68,9 +74,11 @@ export function ProductsScreen({
         description: description.trim(),
         hsn: hsn.trim(),
         price: parseFloat(price) || 0,
+        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
         unit,
         taxRate: parseFloat(taxRate) || 0,
-        stock: stock ? parseInt(stock) : undefined,
+        stock: stock !== '' ? parseInt(stock) : undefined,
+        minStock: minStock !== '' ? parseInt(minStock) : undefined,
       });
     } else {
       onAddProduct({
@@ -78,9 +86,12 @@ export function ProductsScreen({
         description: description.trim(),
         hsn: hsn.trim(),
         price: parseFloat(price) || 0,
+        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
         unit,
         taxRate: parseFloat(taxRate) || 0,
-        stock: stock ? parseInt(stock) : undefined,
+        stock: stock !== '' ? parseInt(stock) : undefined,
+        openingStock: stock !== '' ? parseInt(stock) : undefined,
+        minStock: minStock !== '' ? parseInt(minStock) : undefined,
       });
     }
     triggerHaptic('success');
@@ -151,12 +162,35 @@ export function ProductsScreen({
                     {prod.description}
                   </p>
                 )}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px', fontSize: '0.72rem', color: 'var(--text-dim)', alignItems: 'center' }}>
                   <span>HSN: {prod.hsn || 'None'}</span>
                   &bull;
                   <span>GST: {prod.taxRate}%</span>
                   &bull;
                   <span>Unit: {prod.unit}</span>
+                  {prod.purchasePrice !== undefined && (
+                    <>
+                      &bull;
+                      <span>Buy: {formatCurrency(prod.purchasePrice)}</span>
+                    </>
+                  )}
+                  {prod.stock !== undefined && (
+                    <>
+                      &bull;
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color:
+                            prod.minStock !== undefined && prod.stock <= prod.minStock
+                              ? '#ef4444'
+                              : 'var(--primary)',
+                        }}
+                      >
+                        Stock: {prod.stock} {prod.unit}
+                        {prod.minStock !== undefined && prod.stock <= prod.minStock && ' (Low)'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -233,7 +267,7 @@ export function ProductsScreen({
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
-                  <label className="form-label">Price (₹ Rate) *</label>
+                  <label className="form-label">Selling Price (₹ Rate) *</label>
                   <input
                     type="number"
                     required
@@ -245,6 +279,20 @@ export function ProductsScreen({
                   />
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label">Purchase Price (₹ Rate)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    placeholder="0.00"
+                    value={purchasePrice}
+                    onChange={(e) => setPurchasePrice(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
                   <label className="form-label">Unit of Measure</label>
                   <select
@@ -262,9 +310,7 @@ export function ProductsScreen({
                     <option value="m">Meter (m)</option>
                   </select>
                 </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
                   <label className="form-label">GST Tax Rate (%)</label>
                   <select
@@ -279,7 +325,9 @@ export function ProductsScreen({
                     <option value="28">28% (Luxury GST)</option>
                   </select>
                 </div>
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="form-group">
                   <label className="form-label">HSN / SAC Code</label>
                   <input
@@ -290,6 +338,30 @@ export function ProductsScreen({
                     onChange={(e) => setHsn(e.target.value)}
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Current Stock Quantity</label>
+                  <input
+                    type="number"
+                    step="1"
+                    className="form-input"
+                    placeholder="e.g. 50"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Min Stock Alert Level (Optional)</label>
+                <input
+                  type="number"
+                  step="1"
+                  className="form-input"
+                  placeholder="Alert when stock falls below e.g. 5"
+                  value={minStock}
+                  onChange={(e) => setMinStock(e.target.value)}
+                />
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>

@@ -34,6 +34,9 @@ export async function GET(request: Request) {
       unit: p.unit || 'pcs',
       taxRate: Number(p.tax_rate ?? 18),
       stock: p.stock !== null && p.stock !== undefined ? Number(p.stock) : undefined,
+      purchasePrice: p.purchase_price !== null && p.purchase_price !== undefined ? Number(p.purchase_price) : undefined,
+      openingStock: p.opening_stock !== null && p.opening_stock !== undefined ? Number(p.opening_stock) : undefined,
+      minStock: p.min_stock !== null && p.min_stock !== undefined ? Number(p.min_stock) : undefined,
       createdAt: p.created_at,
     }));
     return NextResponse.json(
@@ -61,7 +64,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, name, description, hsn, price, unit, taxRate, stock } = body;
+    const { id, name, description, hsn, price, unit, taxRate, stock, purchasePrice, openingStock, minStock } = body;
 
     if (!id || !name) {
       return NextResponse.json({ error: 'Product name and ID are required' }, { status: 400 });
@@ -72,10 +75,14 @@ export async function POST(request: Request) {
 
     const result = await sql`
       INSERT INTO products (
-        id, user_id, name, description, hsn, price, unit, tax_rate, stock
+        id, user_id, name, description, hsn, price, unit, tax_rate, stock,
+        purchase_price, opening_stock, min_stock
       ) VALUES (
         ${id}, ${authUser.id}, ${name.trim()}, ${description || null}, ${hsn || null},
-        ${safePrice}, ${unit || 'pcs'}, ${safeTax}, ${stock !== undefined && stock !== null ? Number(stock) : null}
+        ${safePrice}, ${unit || 'pcs'}, ${safeTax}, ${stock !== undefined && stock !== null ? Number(stock) : null},
+        ${purchasePrice !== undefined && purchasePrice !== null ? Number(purchasePrice) : null},
+        ${openingStock !== undefined && openingStock !== null ? Number(openingStock) : null},
+        ${minStock !== undefined && minStock !== null ? Number(minStock) : null}
       )
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -84,7 +91,10 @@ export async function POST(request: Request) {
         price = EXCLUDED.price,
         unit = EXCLUDED.unit,
         tax_rate = EXCLUDED.tax_rate,
-        stock = EXCLUDED.stock
+        stock = EXCLUDED.stock,
+        purchase_price = EXCLUDED.purchase_price,
+        opening_stock = EXCLUDED.opening_stock,
+        min_stock = EXCLUDED.min_stock
       WHERE products.user_id = ${authUser.id}
       RETURNING *
     `;

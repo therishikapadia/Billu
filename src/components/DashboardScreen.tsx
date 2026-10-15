@@ -1,14 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Invoice, CompanySettings } from '@/lib/types';
+import { Invoice, CompanySettings, Purchase, Expense } from '@/lib/types';
 import { formatCurrency, formatDate, triggerHaptic } from '@/lib/utils';
-import { Plus, Clock, CheckCircle2, FileText, ChevronRight, Share2, Building2, ArrowRight } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, FileText, ChevronRight, Share2, Building2, ArrowRight, Truck, Receipt, BarChart3 } from 'lucide-react';
 import { NavTab } from './BottomNav';
 
 interface DashboardScreenProps {
   invoices: Invoice[];
   settings: CompanySettings;
+  purchases?: Purchase[];
+  expenses?: Expense[];
   onNavigate: (tab: NavTab) => void;
   onSelectInvoice: (invoice: Invoice) => void;
   onShareInvoice: (invoice: Invoice) => void;
@@ -17,6 +19,8 @@ interface DashboardScreenProps {
 export function DashboardScreen({
   invoices,
   settings,
+  purchases = [],
+  expenses = [],
   onNavigate,
   onSelectInvoice,
   onShareInvoice,
@@ -34,6 +38,10 @@ export function DashboardScreen({
 
   const totalPaid = paidInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
   const totalPending = pendingInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+
+  const totalPurchases = purchases.reduce((sum, p) => sum + p.grandTotal, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount + (e.gstAmount || 0), 0);
+  const netEstimatedProfit = totalInvoiced - totalPurchases - totalExpenses;
 
   const recentInvoices = invoices.slice(0, 4);
 
@@ -242,6 +250,26 @@ export function DashboardScreen({
           </div>
 
           <div className="stat-box">
+            <span className="text-muted text-xs">Total Purchases</span>
+            <div className="stat-value" style={{ color: '#0891b2' }}>
+              {formatCurrency(totalPurchases)}
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+              {purchases.length} inward bills
+            </span>
+          </div>
+
+          <div className="stat-box" style={{ background: netEstimatedProfit >= 0 ? '#f0fdf4' : '#fef2f2' }}>
+            <span className="text-muted text-xs">Estimated Net Profit</span>
+            <div className="stat-value" style={{ color: netEstimatedProfit >= 0 ? '#10b981' : '#ef4444' }}>
+              {netEstimatedProfit >= 0 ? `+${formatCurrency(netEstimatedProfit)}` : formatCurrency(netEstimatedProfit)}
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+              Sales - Purchases - Expenses
+            </span>
+          </div>
+
+          <div className="stat-box">
             <span className="text-muted text-xs">Tax Collected (GST)</span>
             <div className="stat-value" style={{ color: '#818cf8' }}>
               {formatCurrency(invoices.reduce((sum, inv) => sum + (inv.taxAmount || 0), 0))}
@@ -253,7 +281,62 @@ export function DashboardScreen({
         </div>
       </div>
 
-      {/* Quick Links */}
+      {/* Quick Accounting Module Shortcuts */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+        <button
+          type="button"
+          className="card"
+          onClick={() => {
+            triggerHaptic('light');
+            onNavigate('purchases');
+          }}
+          style={{ padding: '10px 6px', textAlign: 'center', marginBottom: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+        >
+          <Truck size={18} color="#0891b2" />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)' }}>Purchases</span>
+        </button>
+
+        <button
+          type="button"
+          className="card"
+          onClick={() => {
+            triggerHaptic('light');
+            onNavigate('expenses');
+          }}
+          style={{ padding: '10px 6px', textAlign: 'center', marginBottom: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+        >
+          <Receipt size={18} color="#dc2626" />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)' }}>Expenses</span>
+        </button>
+
+        <button
+          type="button"
+          className="card"
+          onClick={() => {
+            triggerHaptic('light');
+            onNavigate('receipts-payments');
+          }}
+          style={{ padding: '10px 6px', textAlign: 'center', marginBottom: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+        >
+          <CheckCircle2 size={18} color="#16a34a" />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)' }}>Money In/Out</span>
+        </button>
+
+        <button
+          type="button"
+          className="card"
+          onClick={() => {
+            triggerHaptic('light');
+            onNavigate('reports');
+          }}
+          style={{ padding: '10px 6px', textAlign: 'center', marginBottom: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+        >
+          <BarChart3 size={18} color="#4f46e5" />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)' }}>P&L Reports</span>
+        </button>
+      </div>
+
+      {/* Directory Quick Links */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <button
           type="button"
@@ -265,7 +348,7 @@ export function DashboardScreen({
           style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
         >
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Products</div>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Products & Stock</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Manage Items & Rates</div>
           </div>
         </button>
@@ -280,7 +363,7 @@ export function DashboardScreen({
           style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
         >
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Clients</div>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Clients & Parties</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Manage Directory</div>
           </div>
         </button>
