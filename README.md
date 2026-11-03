@@ -1,4 +1,4 @@
-# Billu - Mobile & Tablet Billing Suite
+# Invoxa - Mobile & Tablet Billing Suite
 
 **Billu** is a touch-first, mobile and tablet billing application built with **Next.js**, **Capacitor**, and **Neon Serverless PostgreSQL**.
 
